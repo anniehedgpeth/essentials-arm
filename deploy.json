@@ -1,0 +1,278 @@
+{
+   "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+   "contentVersion": "1.0.0.0",
+   "parameters": { 
+     "adminUserName": {
+       "type": "string",
+       "defaultValue": "paazuredev",
+       "metadata": {
+         "description": "Name used to log into the node."
+       }
+     },
+     "keyData": {
+       "type": "secureString",
+       "metadata": {
+         "description": "This is the ssh key for logging into the node, usually id_rsa.pub."
+       }
+     },
+     "chefServerUrl": {
+       "type": "string",
+       "defaultValue": "https://api.chef.io/organizations/privateaccess",
+       "metadata": {
+         "description": "This is the link to the organization on which this node will be bootstrapped."
+       }
+     },
+     "environment": {
+       "type": "string",
+       "defaultValue": "azuredev",
+       "metadata": {
+         "description": "This is environment on which this node would be put on the Chef Server."
+       }
+     },
+     "validationClientName": {
+       "type": "string",
+       "defaultValue": "azuredev-validator",
+       "metadata": {
+         "description": "This is the client created for the purpose of adding the node to the Chef server."
+       }
+     },
+     "validationKey": {
+       "type": "secureString",
+       "metadata": {
+         "description": "This is the validator pem used by the validation client."
+       }
+     },
+     "secret": {
+       "type": "secureString",
+       "metadata": {
+         "description": "This is the secret key used for the encrypted data bags."
+       }
+     }   
+   },
+   "variables": { 
+     "storageAccountName": "[concat('adsa', uniqueString(resourceGroup().id))]",
+     "storageAccountName2": "[concat('adsa2', uniqueString(resourceGroup().id))]",
+     "runlist": "recipe[privateaccess-admin::sync], recipe[privateaccess-admin::config]",
+     "vmName": "azuredev-vm"
+    },
+   "resources": [ 
+        {
+            "comments": "Storage Account for AzureDev",
+            "type": "Microsoft.Storage/storageAccounts",
+            "sku": {
+                "name": "Premium_LRS",
+                "tier": "Premium"
+            },
+            "kind": "Storage",
+            "name": "[variables('storageAccountName')]",
+            "apiVersion": "2016-01-01",
+            "location": "[resourceGroup().location]",
+            "tags": {},
+            "properties": {},
+            "resources": [],
+            "dependsOn": []
+        },
+        {
+            "comments": "Storage Account for AzureDev",
+            "type": "Microsoft.Storage/storageAccounts",
+            "sku": {
+                "name": "Premium_LRS",
+                "tier": "Premium"
+            },
+            "kind": "Storage",
+            "name": "[variables('storageAccountName2')]",
+            "apiVersion": "2016-01-01",
+            "location": "[resourceGroup().location]",
+            "tags": {},
+            "properties": {},
+            "resources": [],
+            "dependsOn": []
+        },
+        {
+            "comments": "Public IP Address for AzureDev",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "azuredev-ip",
+            "apiVersion": "2016-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic",
+                "idleTimeoutInMinutes": 4
+            },
+            "resources": [],
+            "dependsOn": []
+        },
+        {
+            "comments": "Virtual Network for AzureDev",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "azuredev-vnet",
+            "apiVersion": "2016-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "10.0.0.0/24"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "default",
+                        "properties": {
+                            "addressPrefix": "10.0.0.0/24"
+                        }
+                    }
+                ]
+            },
+            "resources": [],
+            "dependsOn": []
+        },
+        {
+            "comments": "Network Security Group for AzureDev",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "azuredev-nsg",
+            "apiVersion": "2016-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "default-allow-ssh",
+                        "properties": {
+                            "protocol": "TCP",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            },
+            "resources": [],
+            "dependsOn": []
+        },
+        {
+            "comments": "Network Interface for AzureDev",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "azuredev-netint",
+            "apiVersion": "2016-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAddress": "10.0.0.4",
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', 'azuredev-ip')]"
+                            },
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', 'azuredev-vnet'), '/subnets/default')]"
+                            }
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableIPForwarding": false,
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'azuredev-nsg')]"
+                }
+            },
+            "resources": [],
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', 'azuredev-ip')]",
+                "[resourceId('Microsoft.Network/virtualNetworks', 'azuredev-vnet')]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', 'azuredev-nsg')]"
+            ]
+        },
+        {
+            "comments": "CentOS 7.3 Virtual Machine for AzureDev",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('vmName')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "Standard_DS1_v2"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "OpenLogic",
+                        "offer": "CentOS",
+                        "sku": "7.3",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "[variables('vmName')]",
+                        "createOption": "FromImage",
+                        "vhd": {
+                            "uri": "[concat('https', '://', variables('storageAccountName'), '.blob.core.windows.net', concat('/vhds/', variables('vmName'),'20170302170234.vhd'))]"
+                        },
+                        "caching": "ReadWrite"
+                    },
+                    "dataDisks": []
+                },
+                "osProfile": {
+                    "computerName": "[variables('vmName')]",
+                    "adminUsername": "[parameters('adminUserName')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": true,
+                        "ssh": {
+                            "publicKeys": [
+                                {
+                                    "path": "[concat('/home/', parameters('adminUserName'), '/.ssh/authorized_keys')]",
+                                    "keyData": "[parameters('keyData')]"
+                                }
+                            ]
+                        }
+                    },
+                    "secrets": [],
+                    "adminPassword": ""
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', 'azuredev-netint')]"
+                        }
+                    ]
+                }
+            },
+            "resources": [],
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', 'azuredev-netint')]"
+            ]
+        },
+        {
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "[concat(variables('vmName'), '/LinuxChefExtension')]",
+          "apiVersion": "2015-05-01-preview",
+          "location": "[resourceGroup().location]",
+          "dependsOn": [
+            "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
+          ],
+          "properties": {
+            "publisher": "Chef.Bootstrap.WindowsAzure",
+            "type": "LinuxChefClient",
+            "typeHandlerVersion": "1210.12",
+            "settings": {
+              "bootstrap_options": {
+                "chef_node_name": "[variables('vmName')]",
+                "chef_server_url": "[parameters('chefServerUrl')]",
+                "validation_client_name": "[parameters('validationClientName')]",
+                "environment": "[parameters('environment')]"
+              },
+              "runlist": "[variables('runlist')]"
+            },
+            "protectedSettings": {
+              "validation_key": "[parameters('validationKey')]",
+              "secret": "[parameters('secret')]"
+            }
+          }
+        }
+    ],
+   "outputs": {  }
+}
