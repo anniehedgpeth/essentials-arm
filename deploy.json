@@ -4,7 +4,7 @@
    "parameters": { 
      "adminUserName": {
        "type": "string",
-       "defaultValue": "chefessentials",
+       "defaultValue": "chef",
        "metadata": {
          "description": "Name used to log into the node."
        }
@@ -17,21 +17,31 @@
      },
      "count": {
          "type": "int",
+         "defaultValue": 2,
          "metadata": {
-             "description": "the number of machines to makes"
+             "description": "the number of machines to make"
+         }
+     },
+     "client": {
+         "type": "string",
+         "defaultValue": "ess",
+         "metadata": {
+             "description": "Client taking Essentials Class"
          }
      }
    },
    "variables": { 
-     "storageAccountName": "[concat('chfe', uniqueString(resourceGroup().id))]",
-     "storageAccountName2": "[concat('chfe2', uniqueString(resourceGroup().id))]",
-     "vmName": "azuredev-vm",
-     "networkInterfaceName": "azuredev-netint",
-     "publicIpName": "azuredev-ip"
+     "storageAccountName": "[concat(parameters('client'),'1', uniqueString(resourceGroup().id))]",
+     "storageAccountName2": "[concat(parameters('client'),'2', uniqueString(resourceGroup().id))]",
+     "vmName": "[concat(parameters('client'),'-vm')]",
+     "networkInterfaceName": "[concat(parameters('client'),'-netint')]",
+     "publicIpName": "[concat(parameters('client'),'-ip')]",
+     "vnetName": "[concat(parameters('client'),'-vnet')]",
+     "nsg": "[concat(parameters('client'),'-nsg')]"
     },
    "resources": [ 
         {
-            "comments": "Storage Account for AzureDev",
+            "comments": "Storage Account for Chef Essentials Course",
             "type": "Microsoft.Storage/storageAccounts",
             "sku": {
                 "name": "Premium_LRS",
@@ -42,7 +52,8 @@
             "copy": { 
                 "name": "storageAccountNameCopy", 
                 "count": "[parameters('count')]" 
-            },            "apiVersion": "2016-01-01",
+            },            
+            "apiVersion": "2016-01-01",
             "location": "[resourceGroup().location]",
             "tags": {},
             "properties": {},
@@ -50,7 +61,7 @@
             "dependsOn": []
         },
         {
-            "comments": "Storage Account for AzureDev",
+            "comments": "Storage Account for Chef Essentials Course",
             "type": "Microsoft.Storage/storageAccounts",
             "sku": {
                 "name": "Premium_LRS",
@@ -70,7 +81,7 @@
             "dependsOn": []
         },
         {
-            "comments": "Public IP Address for AzureDev",
+            "comments": "Public IP Address for Chef Essentials Course",
             "type": "Microsoft.Network/publicIPAddresses",
             "name": "[concat(variables('publicIpName'), copyIndex())]",
             "copy": { 
@@ -81,15 +92,18 @@
             "location": "[resourceGroup().location]",
             "properties": {
                 "publicIPAllocationMethod": "Dynamic",
-                "idleTimeoutInMinutes": 4
+                "idleTimeoutInMinutes": 4,
+                "dnsSettings": {
+                    "domainNameLabel": "[concat(parameters('client'), copyIndex())]"
+                }
             },
             "resources": [],
             "dependsOn": []
         },
         {
-            "comments": "Virtual Network for AzureDev",
+            "comments": "Virtual Network for Chef Essentials Course",
             "type": "Microsoft.Network/virtualNetworks",
-            "name": "azuredev-vnet",
+            "name": "[variables('vnetName')]",
             "apiVersion": "2016-03-30",
             "location": "[resourceGroup().location]",
             "properties": {
@@ -111,9 +125,9 @@
             "dependsOn": []
         },
         {
-            "comments": "Network Security Group for AzureDev",
+            "comments": "Network Security Group for Chef Essentials Course",
             "type": "Microsoft.Network/networkSecurityGroups",
-            "name": "azuredev-nsg",
+            "name": "[variables('nsg')]",
             "apiVersion": "2016-03-30",
             "location": "[resourceGroup().location]",
             "properties": {
@@ -163,7 +177,7 @@
             "dependsOn": []
         },
         {
-            "comments": "Network Interface for AzureDev",
+            "comments": "Network Interface for Chef Essentials Course",
             "type": "Microsoft.Network/networkInterfaces",
             "name": "[concat(variables('networkInterfaceName'), copyIndex())]",
             "copy": { 
@@ -177,13 +191,13 @@
                     {
                         "name": "ipconfig1",
                         "properties": {
-                            "privateIPAddress": "10.0.0.4",
+                            "privateIPAddress": "[concat('10.0.0.', copyindex(4))]",
                             "privateIPAllocationMethod": "Dynamic",
                             "publicIPAddress": {
-                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', 'azuredev-ip')]"
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('publicIpName'), copyIndex()))]"
                             },
                             "subnet": {
-                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', 'azuredev-vnet'), '/subnets/default')]"
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '/subnets/default')]"
                             }
                         }
                     }
@@ -193,20 +207,20 @@
                 },
                 "enableIPForwarding": false,
                 "networkSecurityGroup": {
-                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'azuredev-nsg')]"
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsg'))]"
                 }
             },
             "resources": [],
             "dependsOn": [
-                "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('publicIpName'), copyIndex())]",
-                "[resourceId('Microsoft.Network/virtualNetworks', 'azuredev-vnet')]",
-                "[resourceId('Microsoft.Network/networkSecurityGroups', 'azuredev-nsg')]"
+                "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('publicIpName'), copyIndex()))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsg'))]"
             ]
         },
         {
             "comments": "Windows Server 2016 for Chef Essentials in Windows",
             "type": "Microsoft.Compute/virtualMachines",
-            "name": "[concat(variables('vmName'), countIndex())]",
+            "name": "[concat(variables('vmName'), copyIndex())]",
             "copy": { 
                 "name": "vmCopy", 
                 "count": "[parameters('count')]" 
@@ -225,17 +239,17 @@
                         "version": "latest"
                     },
                     "osDisk": {
-                        "name": "[concat(variables('vmName'), countIndex())]",
+                        "name": "[concat(variables('vmName'), copyIndex())]",
                         "createOption": "FromImage",
                         "vhd": {
-                            "uri": "[concat('https', '://', variables('storageAccountName'), '.blob.core.windows.net', concat('/vhds/', variables('vmName'), countIndex(), '20170302170234.vhd'))]"
+                            "uri": "[concat('https', '://', variables('storageAccountName'), copyIndex(), '.blob.core.windows.net', concat('/vhds/', variables('vmName'), copyIndex(), '20170302170234.vhd'))]"
                         },
                         "caching": "ReadWrite"
                     },
                     "dataDisks": []
                 },
                 "osProfile": {
-                    "computerName": "[concat(variables('vmName'), countIndex()]",
+                    "computerName": "[concat(variables('vmName'), copyIndex())]",
                     "adminUsername": "[parameters('adminUserName')]",
                     "windowsConfiguration": {
                         "provisionVMAgent": true,
@@ -247,28 +261,31 @@
                 "networkProfile": {
                     "networkInterfaces": [
                         {
-                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat('azuredev-netint', countIndex())]"
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('networkInterfaceName'), copyIndex()))]"
                         }
                     ]
                 }
             },
             "resources": [],
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', concat(variables('storageAccountName'), countIndex())]",
-                "[resourceId('Microsoft.Network/networkInterfaces', concact('azuredev-netint', countIndex())]"
+                "[resourceId('Microsoft.Storage/storageAccounts', concat(variables('storageAccountName'), copyIndex()))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('networkInterfaceName'), copyIndex()))]"
             ]
         },
         {
             "apiVersion": "2015-06-15",
             "type": "extensions",
-            "name": "config-app",
+            "name": "config-winrm",
             "location": "[resourceGroup().location]",
+            "copy": { 
+                "name": "wirmCopy", 
+                "count": "[parameters('count')]" 
+            },
             "dependsOn": [
-                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'),copyindex())]",
-                "[variables('musicstoresqlName')]"
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'), copyindex())]"
             ],
             "tags": {
-                "displayName": "config-app"
+                "displayName": "config-winrm"
             },
             "properties": {
                 "publisher": "Microsoft.Compute",
@@ -277,13 +294,41 @@
                 "autoUpgradeMinorVersion": true,
                 "settings": {
                     "fileUris": [
-                        "http://azurestorageaccount-url/myscript.ps1"
+                        "http://www.anniehedgie.com/scripts/winrm-quick-config.bat"
                     ]
                 },
                 "protectedSettings": {
-                    "commandToExecute": "powershell.exe myscript.ps1",
-                    "storageAccountName": "account-with-storage-account-above",
-                    "storageAccountKey": "password-for-account-in-params"
+                    "commandToExecute": "winrm-quick-config.bat"
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "extensions",
+            "name": "install",
+            "location": "[resourceGroup().location]",
+            "copy": { 
+                "name": "installCopy", 
+                "count": "[parameters('count')]" 
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'), copyindex())]"
+            ],
+            "tags": {
+                "displayName": "install"
+            },
+            "properties": {
+                "publisher": "Microsoft.Compute",
+                "type": "CustomScriptExtension",
+                "typeHandlerVersion": "1.8",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "http://www.anniehedgie.com/scripts/install.bat"
+                    ]
+                },
+                "protectedSettings": {
+                    "commandToExecute": "install.bat"
                 }
             }
         }
