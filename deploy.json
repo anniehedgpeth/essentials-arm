@@ -10,7 +10,7 @@
        }
      },
      "adminPassword": {
-       "type": "secureString",
+       "type": "securestring",
        "metadata": {
          "description": "This is the password for logging into the node"
        }
@@ -27,6 +27,30 @@
          "defaultValue": "ess",
          "metadata": {
              "description": "Client taking Essentials Class"
+         }
+     },
+     "vmSize": {
+         "type": "string",
+         "defaultValue": "Standard_DS2_v2",
+         "allowedValues": [
+             "Standard_D1_v2",
+             "Standard_DS2_v2",
+             "Standard_F1",
+             "Standard_F2"
+         ],
+         "metadata": {
+             "description": "The level of the machine to build"
+         }
+     },
+    "extensionScript": {
+         "type": "string",
+         "defaultValue": "install.bat",
+         "allowedValues": [
+             "install.bat",
+             "nothing.bat"
+         ],
+         "metadata": {
+             "description": "the install script to run, found on anniehedgie.com/scripts"
          }
      }
    },
@@ -135,7 +159,7 @@
                     {
                         "name": "default-allow-rdp",
                         "properties": {
-                            "protocol": "TCP",
+                            "protocol": "Tcp",
                             "sourcePortRange": "*",
                             "destinationPortRange": "3389",
                             "sourceAddressPrefix": "*",
@@ -229,7 +253,7 @@
             "location": "[resourceGroup().location]",
             "properties": {
                 "hardwareProfile": {
-                    "vmSize": "Standard_DS2_v2"
+                    "vmSize": "[parameters('vmSize')]"
                 },
                 "storageProfile": {
                     "imageReference": {
@@ -273,64 +297,30 @@
             ]
         },
         {
-            "apiVersion": "2015-06-15",
-            "type": "extensions",
-            "name": "config-winrm",
+            "name": "[concat(variables('vmName'), copyIndex(), '/CustomScriptExtension', copyIndex())]",
+            "type": "Microsoft.Compute/virtualMachines/extensions",
             "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
             "copy": { 
-                "name": "wirmCopy", 
+                "name": "winrmCopy", 
                 "count": "[parameters('count')]" 
-            },
-            "dependsOn": [
-                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'), copyindex())]"
-            ],
-            "tags": {
-                "displayName": "config-winrm"
             },
             "properties": {
                 "publisher": "Microsoft.Compute",
                 "type": "CustomScriptExtension",
-                "typeHandlerVersion": "1.8",
+                "typeHandlerVersion": "1.7",
                 "autoUpgradeMinorVersion": true,
                 "settings": {
-                    "fileUris": [
-                        "http://www.anniehedgie.com/scripts/winrm-quick-config.bat"
-                    ]
+                  "fileUris": "[concat('http://www.anniehedgie.com/scripts/', parameters('extensionScript'))]"
                 },
                 "protectedSettings": {
-                    "commandToExecute": "winrm-quick-config.bat"
+                  "commandToExecute": "[parameters('extensionScript')]",
+                  "vmIndex": "[copyIndex()]"
                 }
-            }
-        },
-        {
-            "apiVersion": "2015-06-15",
-            "type": "extensions",
-            "name": "install",
-            "location": "[resourceGroup().location]",
-            "copy": { 
-                "name": "installCopy", 
-                "count": "[parameters('count')]" 
             },
             "dependsOn": [
-                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'), copyindex())]"
-            ],
-            "tags": {
-                "displayName": "install"
-            },
-            "properties": {
-                "publisher": "Microsoft.Compute",
-                "type": "CustomScriptExtension",
-                "typeHandlerVersion": "1.8",
-                "autoUpgradeMinorVersion": true,
-                "settings": {
-                    "fileUris": [
-                        "http://www.anniehedgie.com/scripts/install.bat"
-                    ]
-                },
-                "protectedSettings": {
-                    "commandToExecute": "install.bat"
-                }
-            }
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'), copyIndex())]"
+            ]
         }
     ],
    "outputs": {  }
