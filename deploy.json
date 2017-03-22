@@ -41,17 +41,6 @@
          "metadata": {
              "description": "The level of the machine to build"
          }
-     },
-    "extensionScript": {
-         "type": "string",
-         "defaultValue": "install.bat",
-         "allowedValues": [
-             "install.bat",
-             "nothing.bat"
-         ],
-         "metadata": {
-             "description": "the install script to run, found on anniehedgie.com/scripts"
-         }
      }
    },
    "variables": { 
